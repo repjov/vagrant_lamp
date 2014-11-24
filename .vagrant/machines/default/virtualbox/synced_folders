@@ -1,0 +1,1 @@
+{"virtualbox":{"/srv/rsvp_v2":{"mount_options":["dmode=777","fmode=666"],"guestpath":"/srv/rsvp_v2","hostpath":"/Users/antonrepjov/web/rsvp/vagrant","disabled":false},"/vagrant":{"guestpath":"/vagrant","hostpath":"/Users/antonrepjov/web/rsvp","disabled":false}}}

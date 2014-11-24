@@ -1,0 +1,110 @@
+---
+- hosts: main
+  sudo: yes
+  vars_files:
+    - vars/main.yml
+  tasks:
+    ##
+    # Apt package installation of required software.
+    #
+    - name: 'install python-software-properties'
+      apt: name=python-software-properties update_cache=yes
+    
+    - name: 'add new repo'
+      apt_repository: repo='ppa:ondrej/php5-oldstable'
+
+    - name: General | Install required packages.
+      action: apt pkg={{ item }} state=installed
+      with_items:
+        - php5
+        - apache2
+        - mysql-server
+        - mysql-client
+        - php5-mysql
+        - php-apc
+        - php5-xmlrpc
+        - php-soap
+        - php5-gd
+        - sendmail
+        - unzip
+        - curl
+        - php5-curl
+        - php5-mcrypt
+        - openssl
+        - python-mysqldb
+
+    ##
+    # PHP Setup.
+    #
+    - name: PHP | Configuration file, php.ini
+      action: template src=templates/etc-php5-apache2-php-ini.j2 dest=/etc/php5/apache2/php.ini
+
+    - name: APC | Cache configuration file, apc.ini
+      action: template src=templates/etc-php5-conf-d-apc-ini.j2 dest=/etc/php5/conf.d/apc.ini
+
+    ##
+    # MySQL database setup.
+    #
+    - name: MySQL | Configuration file, my.cnf
+      action: template src=templates/etc-mysql-my-cnf.j2 dest=/etc/mysql/my.cnf
+
+    - include: ./common-tasks/mysql-secure.yml
+
+    ##
+    # Create Database and make import
+    #
+    - name: Remove database
+      mysql_db: name=rsvpify_v2_app state=absent
+    - name: Create new database
+      mysql_db: name=rsvpify_v2_app state=present
+    - name: copy dump to server
+      copy: src=files/rsvpify_v2_app.sql dest=/tmp
+    - name: Import database
+      mysql_db: name=rsvpify_v2_app state=import target=/tmp/rsvpify_v2_app.sql
+
+    ##
+    # Apache2 setup.
+    #
+    - name: Apache | Enable some required modules
+      action: command a2enmod rewrite vhost_alias
+      tags: common
+
+    - name: Apache | Configuration file for our site
+      action: template src=templates/etc-apache2-sites-available-devserver.j2 dest=/etc/apache2/sites-available/devserver
+      tags: common
+
+    - name: Apache | Disable the default site
+      action: command a2dissite default
+      tags: common
+
+    - name: Apache | Enable our new site
+      action: command a2ensite devserver
+      tags: common
+    
+    ##
+    # Install Composer
+    #
+    - name: Install composer
+      action: shell curl -sS https://getcomposer.org/installer | php
+    - name: move composer to runnable folder
+      action: command mv composer.phar /usr/local/bin/composer
+    - name: Install composer tasks
+      command: composer install
+      args:
+        chdir: "{{project_folder}}/app/laravel"
+
+    ##
+    # set right permissions
+    #
+    - name: Create right htaccess
+      copy: src=files/htaccess dest="{{project_folder}}/.htaccess"
+
+    ##
+    # Restart services
+    #
+    - name: Restart Apache
+      action: service name=apache2 state=restarted
+
+    - name: Restart MySQL
+      action: service name=mysql state=restarted
+
